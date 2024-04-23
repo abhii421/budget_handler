@@ -1,11 +1,16 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 //import 'package:intl/intl.dart';
 import 'package:expense_tracker/models/expense.dart';
 import 'package:flutter/services.dart';
+import 'package:expense_tracker/widgets/expenses.dart';
 
 
 class NewExpense extends StatefulWidget {
-  const NewExpense({super.key});
+  const NewExpense({super.key, required this.onAddExpense});
+
+  final void Function(Expense expense) onAddExpense;
 
   @override
   State<NewExpense> createState() => _NewExpenseState();
@@ -18,10 +23,17 @@ class NewExpense extends StatefulWidget {
 
 class _NewExpenseState extends State<NewExpense> {
 
+  List<Expense> mylist = [
+    Expense(title: 'expense 1', amount: 50, date: DateTime(2024), category: Category.clothing),
+    Expense(title: 'expense 2', amount: 700, date: DateTime(2023), category: Category.clothing),
+  ];
+
+
   final _ExpenseNameController = TextEditingController();
   final _ExpenseAmount = TextEditingController();
   Category _selectedCategory = Category.clothing;
   DateTime? _selectedDate;
+  bool allgood = true;
   //generally it is a good practise to use an underscore in case of text controllers
   //so that it is not reused in other dart files
 
@@ -38,8 +50,46 @@ class _NewExpenseState extends State<NewExpense> {
     setState(() {
       _selectedDate = pickedDate;
     });
+  }
+
+  void addExpensee(Expense expense){
+    setState(() {
+      mylist.add(expense);
+    });
 
   }
+
+
+  void show_InvalidExpenseAmt(){
+    if(Platform.isIOS){
+      showCupertinoDialog(context: context, builder: (ctx) => CupertinoAlertDialog(
+        title: Text('Invalid Expense Amount'),
+        actions: [
+          TextButton(onPressed: (){
+            Navigator.pop(ctx);
+            },
+              child: Text('Okay')
+          )
+        ],
+      ),
+    );
+    }
+    else{
+      showDialog(context: context, builder: (cntxt) => AlertDialog(
+        title: Text('Invalid Expense amount'),
+        content: Text('Non numerical Amount'),
+        actions: [
+          TextButton(onPressed: (){
+            Navigator.pop(cntxt);
+          },
+              child: Text('Okay')
+          )
+        ],
+      ),
+      );
+    }
+  }
+
 
 
 
@@ -52,28 +102,23 @@ class _NewExpenseState extends State<NewExpense> {
 
     if(enteredAmount == null)
       {
-          showDialog(context: context, builder: (cntxt) => AlertDialog(
-            title: Text('Invalid Expense amount'),
-            content: Text('Non numerical Amount'),
-            actions: [
-              TextButton(onPressed: (){
-                Navigator.pop(cntxt);
-              },
-                  child: Text('Okay'))
-            ],
-          ),
-          );
+          show_InvalidExpenseAmt();
       }
 
 
     if(enteredAmount!=null)
     {
-      if (enteredAmount <= 0)
+      if (enteredAmount <= 0 || _ExpenseNameController.text.trim().isEmpty)
         {
+          showCupertinoDialog(context: context, builder: (ctx) => CupertinoAlertDialog(
+              title: Text('Invalid Amount or Name')
+          )
+            );
+
           showDialog(
             context: context, builder: (ctxx) => AlertDialog(
-              title: Text('Invalid Amount'),
-              content: Text('Expense Amount is Zero or Invalid'),
+              title: Text('Invalid Amount or Name'),
+              content: Text('Expense Amount/Name is Zero or Invalid'),
             actions: [
               TextButton(onPressed: (){
                 Navigator.pop(ctxx);
@@ -83,23 +128,31 @@ class _NewExpenseState extends State<NewExpense> {
           ),
           );
         }
+      
+      if(_selectedDate == null)
+        {
+          showDialog(context: context, builder: (cttx) => AlertDialog(
+            title: Text('Invalid/No date'),
+            actions: [
+              TextButton(onPressed: (){
+                Navigator.pop(cttx);
+                },
+                  child: Text('Okay'))
+            ],
+          ));
+        }
+
+      if(enteredAmount > 0 && _ExpenseNameController.text.trim().isNotEmpty && _selectedDate!= null)
+        {
+          print('Both Forms are good');
+          widget.onAddExpense(Expense(title: _ExpenseNameController.text, amount: enteredAmount, date: _selectedDate!, category: _selectedCategory));
+          //addExpensee(Expense(title: _ExpenseNameController.text, amount: enteredAmount, date: _selectedDate!, category: _selectedCategory));
+          //print(mylist);
+
+         Navigator.pop(context);
+        }
     }
-
-    if(_ExpenseNameController.text.trim().isEmpty)
-      {
-        showDialog(context: context, builder: (ctx) => AlertDialog(
-          title: Text('Invalid Name'),
-          content: Text('Expense Name is empty'),
-          actions: [
-            TextButton(onPressed: (){
-              Navigator.pop(ctx);
-            },
-                child: Text('Okay'))
-          ],
-        ),
-        );
-      }
-
+    
   }
 
 
@@ -113,12 +166,14 @@ class _NewExpenseState extends State<NewExpense> {
 
   @override
   Widget build(BuildContext context) {
+
     return Padding(
-      padding: EdgeInsets.all(10),
+      padding: EdgeInsets.fromLTRB(12,12,12,12),
       child: Form(
 
         child: Column(
           children: [
+            SizedBox(height : 60),
             TextField(
               //onChanged: SaveTitle,
               controller: _ExpenseNameController,
@@ -152,15 +207,16 @@ class _NewExpenseState extends State<NewExpense> {
                 SizedBox(width : 10),
 
                 Expanded(child: Row(
+
                   children: [
                   Text(_selectedDate == null ? 'Not Selected' : formatter.format(_selectedDate!)),
                     IconButton(onPressed: (){
                       _ShowDatePicker();
-                    }, icon: Icon(Icons.calendar_month))
+                      },
+                        icon: Icon(Icons.calendar_month))
                 ],
                 )
                 )
-
 
               ],
             ),
@@ -168,36 +224,33 @@ class _NewExpenseState extends State<NewExpense> {
             SizedBox(height : 10),
             Row(
               children: [
+                 SizedBox(width : 10),
 
-
-
-
-                SizedBox(width : 10),
-
-
-
-
-                SizedBox(width: 10,),
-                Spacer(),
-                DropdownButton(
+                  SizedBox(width: 10,),
+                  Spacer(),
+                  DropdownButton(
                   value: _selectedCategory,
                   items: Category.values
                       .map(
                           (category) => DropdownMenuItem(
                             value: category,
-                            child : Text(
-                                category.name.toUpperCase()
-                            )
+                            child : Text(category.name.toUpperCase())
                 )
                 ).toList(),
 
                   onChanged: (value) {
-                    if(value!= null) {
+
+                    if(value==null)
+                      {
+                        return;
+                      }
+
+
                       setState(() {
                         _selectedCategory = value;
                       });
                     }
-                },
+                ,
 
                 ),
               ],
@@ -209,6 +262,7 @@ class _NewExpenseState extends State<NewExpense> {
                // SizedBox(width : 20),
                 ElevatedButton(onPressed: (){
                   _submitExpenseData();
+
                 },
                     child: Text('Save', style: TextStyle(fontSize: 20),)
                 ),
@@ -228,3 +282,23 @@ class _NewExpenseState extends State<NewExpense> {
     );
   }
 }
+
+
+
+// if(_ExpenseNameController.text.trim().isEmpty)
+//   {
+//     showDialog(context: context, builder: (ctx) => AlertDialog(
+//       title: Text('Invalid Name'),
+//       content: Text('Expense Name is empty'),
+//       actions: [
+//         TextButton(onPressed: (){
+//           Navigator.pop(ctx);
+//         },
+//             child: Text('Okay'))
+//       ],
+//     ),
+//     );
+//   }
+
+
+
